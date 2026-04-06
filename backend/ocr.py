@@ -8,32 +8,27 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from backend.preprocess import preprocess_image
+from backend.cleanup import cleanup_text
 
 print("Loading TrOCR model... (first run downloads ~1.3GB, please wait)")
 
-processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
-model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
+processor = TrOCRProcessor.from_pretrained("microsoft/trocr-large-handwritten")
+model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-large-handwritten")
 model.eval()
 
 print("TrOCR model loaded successfully!")
 
 
 def split_into_lines(pil_image: Image.Image) -> list:
-    """Split a document image into individual line images"""
-    # Convert to numpy for OpenCV processing
     img_array = np.array(pil_image.convert("L"))
 
-    # Binarize
     _, binary = cv2.threshold(
         img_array, 0, 255,
         cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
     )
 
-    # Sum pixel values horizontally to find lines
     horizontal_sum = np.sum(binary, axis=1)
-
-    # Find line boundaries — rows with text vs empty rows
-    threshold = np.max(horizontal_sum) * 0.05
+    threshold = np.max(horizontal_sum) * 0.15
     in_line = False
     line_starts = []
     line_ends = []
@@ -46,18 +41,15 @@ def split_into_lines(pil_image: Image.Image) -> list:
             in_line = False
             line_ends.append(i)
 
-    # Handle case where last line reaches bottom of image
     if in_line:
         line_ends.append(len(horizontal_sum))
 
-    # Crop each line with padding
     lines = []
     padding = 5
     width = pil_image.width
 
     for start, end in zip(line_starts, line_ends):
-        # Skip lines that are too thin (noise)
-        if end - start < 8:
+        if end - start < 15:
             continue
         top = max(0, start - padding)
         bottom = min(pil_image.height, end + padding)
@@ -68,7 +60,7 @@ def split_into_lines(pil_image: Image.Image) -> list:
 
 
 def ocr_single_line(line_image: Image.Image) -> str:
-    """Run TrOCR on a single line image"""
+    line_image = line_image.resize((384, 384))
     pixel_values = processor(
         images=line_image,
         return_tensors="pt"
@@ -89,38 +81,43 @@ def ocr_single_line(line_image: Image.Image) -> str:
 
 
 def run_ocr(image_path: str) -> str:
-    """Full pipeline — preprocess, split lines, OCR each line"""
-    # Preprocess image
+    # Step 1 — preprocess
     image = preprocess_image(image_path)
 
-    # Split into lines
+    # Step 2 — split into lines
     lines = split_into_lines(image)
 
-    if not lines:
-        # Fallback — run on whole image if no lines detected
-        return ocr_single_line(image)
-
-    print(f"Detected {len(lines)} lines in document")
-
-    # OCR each line
     extracted_lines = []
-    for i, line in enumerate(lines):
-        print(f"Processing line {i + 1}/{len(lines)}...")
-        text = ocr_single_line(line)
-        if text:
+
+    if not lines:
+        text = ocr_single_line(image)
+        if text and len(text.strip()) > 2:
             extracted_lines.append(text)
+    else:
+        print(f"Detected {len(lines)} lines in document")
 
-    # Join all lines
-    full_text = "\n".join(extracted_lines)
-    return full_text
+        for i, line in enumerate(lines):
+            print(f"Processing line {i + 1}/{len(lines)}...")
+            text = ocr_single_line(line)
 
+            # 🔥 filtering
+            if text and len(text.strip()) > 2:
+                extracted_lines.append(text)
 
-## Save and test again
+    # 🔥 ALWAYS define raw_text
+    if extracted_lines:
+        raw_text = "\n".join(extracted_lines)
+    else:
+        raw_text = ""   # fallback to avoid crash
 
-#The server will auto-reload since we used `--reload`. Just go back to Swagger UI and upload the same image again.
+    print("Raw OCR output:")
+    print(raw_text)
+    print("Running LLM cleanup...")
 
-#This time the terminal will show:
+    # Step 3 — LLM cleanup
+    cleaned_text = cleanup_text(raw_text)
 
-#Detected X lines in document
-#Processing line 1/X...
-#Processing line 2/X...
+    print("Cleaned output:")
+    print(cleaned_text)
+
+    return cleaned_text

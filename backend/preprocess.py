@@ -50,11 +50,7 @@ def preprocess_image(image_path: str) -> Image.Image:
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     contrast = clahe.apply(denoised)
 
-    # Binarize
-    _, binary = cv2.threshold(
-        contrast, 0, 255,
-        cv2.THRESH_BINARY + cv2.THRESH_OTSU
-    )
+    binary = contrast  # keep grayscale, DO NOT threshold
 
     # Deskew
     coords = np.column_stack(np.where(binary > 0))
