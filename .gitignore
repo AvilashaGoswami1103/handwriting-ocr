@@ -11,4 +11,6 @@ __pycache__/
 # OS junk
 .DS_Store
 
-backend/uploads/
+backend/
+uploads/
+outputs/

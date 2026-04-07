@@ -2,37 +2,29 @@ import ollama
 
 
 def cleanup_text(raw_text: str) -> str:
-    """Use Mistral to fix OCR errors and structure the text cleanly"""
+    if not raw_text.strip():
+        return raw_text
 
     prompt = f"""You are a strict OCR correction assistant.
 
-The following text was extracted from a handwritten document and may contain OCR errors.
+Fix ONLY obvious OCR errors.
+DO NOT guess unknown words.
+DO NOT hallucinate.
 
-Your job is to:
-- Fix ONLY obvious OCR mistakes (broken words, spacing, casing, punctuation)
-- Preserve the exact original meaning
-- Preserve ALL line breaks and structure exactly as given
-- Keep all numbers, dosages, and units EXACTLY unchanged
-- Keep all medical terms, drug names, and abbreviations EXACTLY as they appear
-
-STRICT RULES:
-- DO NOT guess unclear or unreadable words
-- If a word is uncertain, KEEP it exactly as it is
-- DO NOT replace words with more common alternatives
-- DO NOT hallucinate medical terms or drug names
-- DO NOT add any new words or remove any existing words
-- DO NOT summarize or rephrase
-
-Output ONLY the corrected text. No explanations.
-
-Raw OCR text:
+Text:
 {raw_text}
 
-Corrected text:"""
+Output:"""
 
-    response = ollama.chat(
-        model="mistral",
-        messages=[{"role": "user", "content": prompt}]
-    )
+    try:
+        response = ollama.chat(
+            model="mistral",
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0}
+        )
 
-    return response["message"]["content"].strip()
+        return response["message"]["content"].strip()
+
+    except Exception as e:
+        print("Cleanup failed:", e)
+        return raw_text
