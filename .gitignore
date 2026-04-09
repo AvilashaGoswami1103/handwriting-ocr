@@ -2,7 +2,7 @@
 .vscode/
 
 # Python virtual environment
-.cuda_env/
+cuda_env/
 
 # Python cache
 __pycache__/
