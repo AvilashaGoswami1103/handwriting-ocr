@@ -1,16 +1,18 @@
-# Virtual environment
-venv/
+# VS Code
+.vscode/
+
+# Python virtual environment
+.cuda_env/
 
 # Python cache
 __pycache__/
 *.pyc
 
-# VS Code settings
-.vscode/
+# Jupyter
+.ipynb_checkpoints/
 
-# OS junk
-.DS_Store
+# Local setup info
+setup_info.txt
 
-backend/
-uploads/
-outputs/
+
+
